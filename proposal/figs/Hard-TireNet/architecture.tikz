@@ -1,0 +1,381 @@
+\begin{tikzpicture}[
+    x=1cm,
+    y=1cm,
+    >=Latex,
+    font=\small,
+    block/.style={
+        draw=black!90,
+        rounded corners=2pt,
+        line width=0.8pt,
+        align=center,
+        inner sep=5pt
+    },
+    inputbox/.style={
+        block,
+        fill=blue!6,
+        minimum width=3.9cm,
+        minimum height=2.35cm
+    },
+    sharedbox/.style={
+        block,
+        fill=blue!6,
+        minimum width=6.3cm,
+        minimum height=4.8cm
+    },
+    baseline/.style={
+        block,
+        fill=gray!10,
+        text width=4.6cm,
+        minimum height=1.35cm
+    },
+    softouter/.style={
+        block,
+        fill=yellow!14,
+        text width=4.6cm,
+        minimum height=2.45cm
+    },
+    hardouter/.style={
+        block,
+        fill=green!16,
+        text width=4.6cm,
+        minimum height=3.15cm
+    },
+    innerlayer/.style={
+        draw=black!80,
+        rounded corners=2pt,
+        line width=0.65pt,
+        fill=white,
+        align=center,
+        inner sep=4pt,
+        text width=3.55cm
+    },
+    context/.style={
+        block,
+        fill=orange!8,
+        draw=orange!85!black,
+        minimum width=3.9cm,
+        minimum height=1.35cm
+    },
+    chronoPlaceholder/.style={
+        draw=black!55,
+        dashed,
+        rounded corners=2pt,
+        line width=0.7pt,
+        fill=gray!3,
+        align=center,
+        minimum width=2.8cm,
+        minimum height=1.15cm,
+        inner sep=3pt
+    },
+    conn/.style={
+        -{Latex[length=2.4mm,width=1.7mm]},
+        line width=0.8pt,
+        draw=black!82
+    },
+    dashedconn/.style={
+        -{Latex[length=2.2mm,width=1.5mm]},
+        dashed,
+        line width=0.75pt,
+        draw=black!70
+    },
+    dense/.style={
+        draw=black!55,
+        line width=0.50pt
+    },
+    neuron/.style={
+        circle,
+        draw=black!80,
+        fill=blue!10,
+        line width=0.7pt,
+        minimum size=6.5mm,
+        inner sep=0pt
+    }
+]
+
+% ================================================================
+% Task inputs
+% ================================================================
+\node[
+    inputbox,
+    very thick,
+    node font=\small\bfseries
+] (input) at (-0.32,0.02) {
+    Task inputs\\
+    $\text{lateral: }(\alpha,F_z,\mu)$\\
+    $\text{combined: }(\kappa,\alpha,F_z,\mu)$
+};
+
+% ================================================================
+% Project Chrono data-generation source
+% ================================================================
+
+\def\chronoXShift{0.0cm}   % + right, - left
+\def\chronoYShift{1.55cm}  % + up,    - down
+
+\node[
+    chronoPlaceholder,
+    minimum width=115pt,
+    minimum height=48pt,
+    xshift=\chronoXShift,
+    yshift=\chronoYShift
+] (chrono) at (input.north) {
+    \includegraphics[width=2.75cm]{figs/Hard-TireNet/pC.png}\\[-1pt]
+    {\scriptsize\bfseries Data generation}
+};
+
+\draw[
+    dashed,
+    -{Latex[length=2.0mm,width=1.4mm]},
+    line width=0.65pt,
+    draw=black!55
+]
+(chrono.south) -- (input.north);
+
+% ================================================================
+% Physical context
+% ================================================================
+\node[
+    context,
+    very thick,
+    node font=\small\bfseries,
+    minimum height=62pt
+] (phys) at (-0.25,-3.87) {
+    Physical context\\
+    $(F_z,\mu)$
+};
+
+% ================================================================
+% Common MLP architecture
+% ================================================================
+\node[
+    sharedbox,
+    very thick,
+    minimum height=168pt
+] (shared) at (5.85,0) {};
+
+% Movable shared-title position
+\def\sharedTitleXShift{0.0cm}   % + right, - left
+\def\sharedTitleYShift{-0.7cm}  % + up,    - down
+
+\node[
+    node font=\large\bfseries,
+    align=center,
+    xshift=\sharedTitleXShift,
+    yshift=\sharedTitleYShift
+] at (shared.north) {
+    Common fully connected\\
+    MLP architecture
+};
+
+% ------------------------------------------------
+% Neural-network nodes
+% ------------------------------------------------
+\begin{scope}[scale=1.17, transform shape]
+
+\node[neuron] (a1) at ($(shared.center)+(-2.00, 1.25)$) {};
+\node[neuron] (a2) at ($(shared.center)+(-2.00, 0.42)$) {};
+\node[neuron] (a3) at ($(shared.center)+(-2.00,-0.42)$) {};
+\node[neuron] (a4) at ($(shared.center)+(-2.00,-1.25)$) {};
+
+\node[neuron] (b1) at ($(shared.center)+(-0.72, 0.95)$) {};
+\node[neuron] (b2) at ($(shared.center)+(-0.72, 0.00)$) {};
+\node[neuron] (b3) at ($(shared.center)+(-0.72,-0.95)$) {};
+
+\node[neuron] (c1) at ($(shared.center)+(0.75, 0.95)$) {};
+\node[neuron] (c2) at ($(shared.center)+(0.75, 0.00)$) {};
+\node[neuron] (c3) at ($(shared.center)+(0.75,-0.95)$) {};
+
+\node[neuron] (d1) at ($(shared.center)+(1.95, 0.68)$) {};
+\node[neuron] (d2) at ($(shared.center)+(1.95,-0.68)$) {};
+
+\end{scope}
+
+% ------------------------------------------------
+% Dense connections
+% ------------------------------------------------
+\foreach \s in {a1,a2,a3,a4}{
+    \foreach \t in {b1,b2,b3}{
+        \draw[dense] (\s) -- (\t);
+    }
+}
+
+\foreach \s in {b1,b2,b3}{
+    \foreach \t in {c1,c2,c3}{
+        \draw[dense] (\s) -- (\t);
+    }
+}
+
+\foreach \s in {c1,c2,c3}{
+    \foreach \t in {d1,d2}{
+        \draw[dense] (\s) -- (\t);
+    }
+}
+
+% ================================================================
+% Baseline branch
+% ================================================================
+\node[
+    baseline,
+    anchor=west,
+    very thick,
+    node font=\small\bfseries
+] (mlp) at (10.05,2.68) {
+    MLP baseline\\[2pt]
+    $\widehat F=\widetilde F$
+};
+
+% ================================================================
+% Soft-constrained branch
+% ================================================================
+\node[
+    softouter,
+    anchor=west,
+    very thick
+] (softbox) at (10.05,0.25) {};
+
+\node[
+    anchor=north,
+    node font=\small\bfseries
+] at ($(softbox.north)+(0,-0.17)$) {
+    Soft MLP
+};
+
+\node[
+    align=center
+] (softraw) at ($(softbox.center)+(0,0.38)$) {
+    $\widehat F=\widetilde F$
+};
+
+% ------------------------------------------------
+% Movable soft-penalty box
+% ------------------------------------------------
+\def\softPenaltyXShift{0.0cm}   % + right, - left
+\def\softPenaltyYShift{-0.5cm}  % + up,    - down
+
+\node[
+    innerlayer,
+    fill=yellow!5,
+    xshift=\softPenaltyXShift,
+    yshift=\softPenaltyYShift
+] (softpenalty) at (softbox.center) {
+    \textbf{Physics penalty}\\[-0.1pt]
+    added to training loss\\
+    Eq.~(15)
+};
+
+% ================================================================
+% Hard-constrained branch
+% ================================================================
+\node[
+    hardouter,
+    anchor=west,
+    very thick,
+    minimum height=96pt
+] (hardbox) at (10.05,-3.26) {};
+
+\node[
+    anchor=north,
+    node font=\small\bfseries
+] at ($(hardbox.north)+(0,-0.16)$) {
+    Ours (Hard-Constrained)
+};
+
+% Raw network output
+\node[
+    align=center
+] (hardraw) at ($(hardbox.north)+(0,-0.78)$) {
+    Raw output: $\widetilde F$
+};
+
+% ------------------------------------------------
+% Movable enforcement layer
+% ------------------------------------------------
+\def\enforceXShift{0.0cm}   % + right, - left
+\def\enforceYShift{-0.2cm}  % + up,    - down
+
+\node[
+    innerlayer,
+    fill=green!6,
+    xshift=\enforceXShift,
+    yshift=\enforceYShift
+] (enforce) at (hardbox.center) {
+    \textbf{ReLU constraint-enforcement layer}\\[2pt]
+    Pure lateral: Eq.~(10)\\
+    Combined slip: Eq.~(11)
+};
+
+% Final feasible output
+\node[
+    align=center
+] (hardout) at ($(hardbox.south)+(0,0.27)$) {
+    $\widehat F\in\mathcal C^\tau(F_z,\mu)$
+};
+
+% ------------------------------------------------
+% Internal hard-layer arrows
+% ------------------------------------------------
+
+
+% ================================================================
+% Main signal flow
+% ================================================================
+
+% Common MLP -> baseline
+\draw[
+    conn,
+    arrows=-Latex
+]
+    (shared.east)
+    -- ++(0.60,0)
+    |- (mlp.west);
+
+% Common MLP -> soft branch
+\draw[
+    thick,
+    arrows=-Latex
+]
+    (9.64,0)
+    -- (10.07,0);
+
+% Common MLP -> hard raw output
+\draw[
+    conn,
+    arrows=-Latex
+]
+    (shared.east)
+    -- ++(0.60,0)
+    |- (10.07,-2.48);
+
+% Task input -> shared MLP
+
+% ================================================================
+% Physical-context connections
+% ================================================================
+
+% Soft constraint: training-loss penalty
+\draw[
+    dashedconn
+]
+    (phys.east)
+    -- ++(7,0)
+    |- (softpenalty.west);
+
+% Hard constraint: direct enforcement
+\draw[
+    conn,
+    -
+]
+    (phys.east)
+    -- ++(7,0)
+    |- (10.07,-3.87);
+
+\draw[
+    ->,
+    thick,
+    dashed
+]
+    (10.07,-3.87)
+    -- (10.63,-3.87);
+
+  \draw[->, thick] (input.east) -- (shared.west);
+\end{tikzpicture}

@@ -1,0 +1,292 @@
+\begin{tikzpicture}[
+    font=\small,
+    >=Latex,
+    panel/.style={
+        draw=black!35,
+        line width=0.55pt,
+        rounded corners=2pt,
+        fill=black!1
+    },
+    axis/.style={
+        -{Latex[length=2.0mm,width=1.35mm]},
+        draw=black!72,
+        line width=0.65pt
+    },
+    guide/.style={
+        draw=black!38,
+        line width=0.50pt,
+        dash pattern=on 2.5pt off 2pt
+    },
+    boundline/.style={
+        draw=black!35,
+        line width=0.45pt,
+        dashed
+    },
+    feasible/.style={
+        draw=green!45!black,
+        fill=green!12,
+        line width=0.85pt
+    },
+    rawpoint/.style={
+        circle,
+        fill=red!78!black,
+        draw=red!70!black,
+        inner sep=1.7pt
+    },
+    hardpoint/.style={
+        circle,
+        fill=blue!78!black,
+        draw=blue!65!black,
+        inner sep=1.7pt
+    },
+    maparrow/.style={
+        -{Latex[length=2.1mm,width=1.4mm]},
+        draw=black!52,
+        line width=0.75pt
+    },
+    annotation/.style={
+        font=\scriptsize,
+        inner sep=1.2pt
+    }
+]
+
+% ================================================================
+% LEFT PANEL: PURE-LATERAL FORCE
+% ================================================================
+
+\draw[panel]
+    (-0.20,-1.55) rectangle (6.25,2.05);
+
+\node[font=\small\bfseries]
+    at (3.025,1.72)
+    {Pure-lateral force bound};
+
+% Fy axis
+\draw[axis]
+    (0.55,0) -- (5.72,0);
+
+\node[anchor=west]
+    at (5.73,0)
+    {$F_y$};
+
+% Admissible interval
+\path[feasible]
+    (1.32,-0.20) rectangle (4.72,0.20);
+
+\draw[boundline]
+    (1.32,-0.39) -- (1.32,0.43);
+
+\draw[boundline]
+    (4.72,-0.39) -- (4.72,0.43);
+
+\node[annotation,anchor=north]
+    at (1.32,-0.39)
+    {$-\mu F_z$};
+
+\node[annotation,anchor=north]
+    at (4.72,-0.39)
+    {$\mu F_z$};
+
+\node[annotation]
+    at (3.02,0.47)
+    {$|F_y|\leq\mu F_z$};
+
+% Raw and constrained predictions
+\coordinate (rawLat) at (5.30,0);
+\coordinate (hardLat) at (4.72,0);
+
+\draw[maparrow]
+    (rawLat) -- (hardLat);
+
+\node[rawpoint] at (rawLat) {};
+\node[hardpoint] at (hardLat) {};
+
+\node[
+    annotation,
+    text=red!72!black,
+    anchor=south west
+]
+    at ($(rawLat)+(0.02,0.08)$)
+    {$\widetilde{F}_y$};
+
+\node[
+    annotation,
+    text=blue!72!black,
+    anchor=north east
+]
+    at ($(hardLat)+(-0.02,-0.08)$)
+    {$\widehat{F}_y$};
+
+\node[
+    annotation,
+    text=red!70!black,
+    anchor=east
+]
+    at (5.35,0.78)
+    {unconstrained output};
+
+\draw[
+    draw=red!50!black,
+    line width=0.45pt
+]
+    (5.08,0.67) -- (5.27,0.10);
+
+
+% ================================================================
+% RIGHT PANEL: COMBINED-SLIP FORCE
+% ================================================================
+
+\draw[panel]
+    (6.55,-1.55) rectangle (13.45,2.05);
+
+\node[font=\small\bfseries]
+    at (10.00,1.72)
+    {Combined-slip affine envelope};
+
+% Axes
+\coordinate (O) at (10.00,0);
+
+\draw[axis]
+    (7.55,0) -- (12.95,0);
+
+\draw[axis]
+    (10.00,-1.12) -- (10.00,1.24);
+
+\node[anchor=west]
+    at (12.96,0)
+    {$F_x$};
+
+\node[anchor=south]
+    at (10.00,1.25)
+    {$F_y$};
+
+
+% ================================================================
+% ELLIPTICAL REFERENCE ENVELOPE
+% ================================================================
+
+\def\ellipseA{1.75}
+\def\ellipseB{0.95}
+
+\draw[guide]
+    (O) ellipse
+    [x radius=\ellipseA, y radius=\ellipseB];
+
+
+% ================================================================
+% 32-SIDED OUTER AFFINE ENVELOPE
+% ================================================================
+
+\def\Npoly{32}
+
+\pgfmathsetmacro{\polyRadius}{1/cos(180/\Npoly)}
+
+\foreach \i in {0,...,31}{
+    \pgfmathsetmacro{\polyAngle}{(2*\i+1)*180/\Npoly}
+    \coordinate (poly\i) at
+    ({
+        10 + \ellipseA*\polyRadius*cos(\polyAngle)
+    },{
+        \ellipseB*\polyRadius*sin(\polyAngle)
+    });
+}
+
+\path[feasible]
+    (poly0)
+    \foreach \i in {1,...,31}{
+        -- (poly\i)
+    }
+    -- cycle;
+
+% Redraw ellipse above polygon fill
+\draw[guide]
+    (O) ellipse
+    [x radius=\ellipseA, y radius=\ellipseB];
+
+
+% ================================================================
+% LABELS
+% ================================================================
+
+\node[
+    annotation,
+    anchor=west
+]
+    at (11.32,1.05)
+    {affine outer envelope};
+
+\draw[
+    draw=green!40!black,
+    line width=0.45pt
+]
+    (11.25,0.96) -- (10.95,0.82);
+
+\node[
+    annotation,
+    text=black!55,
+    anchor=west
+]
+    at (11.38,-0.83)
+    {idealized ellipse};
+
+\draw[
+    draw=black!35,
+    line width=0.45pt
+]
+    (11.32,-0.76) -- (11.10,-0.63);
+
+
+% ================================================================
+% RAW AND HARD-CONSTRAINED COMBINED-SLIP PREDICTIONS
+% ================================================================
+
+\coordinate (rawComb) at (12.28,0.70);
+\coordinate (hardComb) at (11.47,0.52);
+
+\draw[maparrow]
+    (rawComb) -- (hardComb);
+
+\node[rawpoint] at (rawComb) {};
+\node[hardpoint] at (hardComb) {};
+
+\node[
+    annotation,
+    text=red!72!black,
+    anchor=south west
+]
+    at ($(rawComb)+(0.02,0.06)$)
+    {$\widetilde{\bm{y}}^{\mathrm{CS}}$};
+
+\node[
+    annotation,
+    text=blue!72!black,
+    anchor=north east
+]
+    at ($(hardComb)+(-0.03,-0.08)$)
+    {$\widehat{\bm{y}}^{\mathrm{CS}}
+      \in\mathcal{C}^{\mathrm{CS}}$};
+
+
+% ================================================================
+% COMBINED-SLIP ADMISSIBLE SET
+% ================================================================
+
+\node[
+    annotation,
+    align=center
+]
+    at (10.00,-1.30)
+    {$
+        \mathcal{C}^{\mathrm{CS}}(\bm{x}^{\mathrm{CS}})
+        :=
+        \left\{
+            \bm{y}^{\mathrm{CS}}
+            \,\middle|\,
+            A^{\mathrm{CS}}(\bm{x}^{\mathrm{CS}})
+            \bm{y}^{\mathrm{CS}}
+            \leq
+            \bm{b}^{\mathrm{CS}}
+        \right\}
+    $};
+
+\end{tikzpicture}

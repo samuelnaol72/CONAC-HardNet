@@ -22,6 +22,10 @@
 \usepackage{comment}
 \def\cmt{true} % Enable comments
 
+% NSE added packages
+\usetikzlibrary{arrows.meta, positioning, fit, calc}
+\usepackage{comment}
+\def\cmt{true} % Enable comments
 
 \titlepic{%
   \includegraphics[height = 8mm]{\template/figs/logo_KAIST.png}
@@ -90,6 +94,7 @@
 
 \begin{IEEEbiography}[{
     \includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{\template/people/nsErega.jpg}}]{Naol Samuel Erega {\tt{\small samuelnaol7@kaist.ac.kr}}}
+    \cred{
     received the B.S. degree in Mechanical Engineering from Incheon National University, South Korea, in 2023, and the M.S. degree in Mechanical Engineering from GIST, South Korea, in 2025.
     He is currently pursuing the Ph.D. degree in the Cho Chun Shik Graduate School of Mobility at Korea Advanced Institute of Science and Technology (KAIST), South Korea.
     His research interests include neuro-adaptive control, online optimization, and contraction theory.
@@ -120,7 +125,7 @@
 \input{chapters/introduction.tex}
 \input{chapters/preliminaries.tex}
 \input{chapters/Hard-CONAC.tex}
-\input{chapters/PhysicalHardNet.tex}
+\input{chapters/Hard-TireNet.tex}
 \input{chapters/conclusion.tex}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

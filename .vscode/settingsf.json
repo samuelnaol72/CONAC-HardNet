@@ -1,0 +1,301 @@
+{
+    "latex-workshop.latex.recipes": [
+        {
+            "name": "latexmk (latexmkrc)",
+            "tools": [
+                "latexmk"
+            ]
+        },
+        {
+            "name": "latexmk (LuaLaTeX)",
+            "tools": [
+                "latexmk-lualatex"
+            ]
+        },
+        {
+            "name": "latexmk (XeLaTeX)",
+            "tools": [
+                "latexmk-xelatex"
+            ]
+        },
+        {
+            "name": "pdflatex + View PDF",
+            "tools": [
+                "pdflatex",
+                "view-pdf-twice"
+            ]
+        },
+        {
+            "name": "LuaLaTeX + View PDF",
+            "tools": [
+                "lualatex",
+                "view-pdf-twice"
+            ]
+        },
+        {
+            "name": "XeLaTeX + View PDF",
+            "tools": [
+                "xelatex",
+                "view-pdf-twice"
+            ]
+        },
+        {
+            "name": "BibTeX",
+            "tools": [
+                "bibtex"
+            ]
+        },
+        {
+            "name": "Biber",
+            "tools": [
+                "biber"
+            ]
+        },
+        {
+            "name": "Makeindex",
+            "tools": [
+                "makeindex"
+            ]
+        }
+    ],
+    "latex-workshop.latex.tools": [
+        {
+            "name": "latexmk",
+            "command": "latexmk",
+            "args": [
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "-pdf",
+                "-latexmkrc=${latex:defaultمتarmlatexmkrc}"
+            ]
+        },
+        {
+            "name": "latexmk-lualatex",
+            "command": "latexmk",
+            "args": [
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "-pdf",
+                "-lualatex",
+                "-latexmkrc=${latex:defaultمتarmlatexmkrc}"
+            ]
+        },
+        {
+            "name": "latexmk-xelatex",
+            "command": "latexmk",
+            "args": [
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "-pdf",
+                "-xelatex",
+                "-latexmkrc=${latex:defaultمتarmlatexmkrc}"
+            ]
+        },
+        {
+            "name": "pdflatex",
+            "command": "pdflatex",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "lualatex",
+            "command": "lualatex",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "xelatex",
+            "command": "xelatex",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "bibtex",
+            "command": "bibtex",
+            "args": [
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "biber",
+            "command": "biber",
+            "args": [
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "makeindex",
+            "command": "makeindex",
+            "args": [
+                "%DOC%"
+            ]
+        }
+    ],
+    "latex-workshop.latex.recipes": [
+        {
+            "name": "latexmk (latexmkrc)",
+            "tools": [
+                "latexmk"
+            ]
+        },
+        {
+            "name": "latexmk (LuaLaTeX)",
+            "tools": [
+                "latexmk-lualatex"
+            ]
+        },
+        {
+            "name": "latexmk (XeLaTeX)",
+            "tools": [
+                "latexmk-xelatex"
+            ]
+        },
+        {
+            "name": "pdflatex + View PDF",
+            "tools": [
+                "pdflatex",
+                "view-pdf-twice"
+            ]
+        },
+        {
+            "name": "LuaLaTeX + View PDF",
+            "tools": [
+                "lualatex",
+                "view-pdf-twice"
+            ]
+        },
+        {
+            "name": "XeLaTeX + View PDF",
+            "tools": [
+                "xelatex",
+                "view-pdf-twice"
+            ]
+        },
+        {
+            "name": "BibTeX",
+            "tools": [
+                "bibtex"
+            ]
+        },
+        {
+            "name": "Biber",
+            "tools": [
+                "biber"
+            ]
+        },
+        {
+            "name": "Makeindex",
+            "tools": [
+                "makeindex"
+            ]
+        }
+    ],
+    "latex-workshop.latex.tools": [
+        {
+            "name": "latexmk",
+            "command": "latexmk",
+            "args": [
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "-pdf",
+                "-latexmkrc=${latex:defaultمتarmlatexmkrc}"
+            ]
+        },
+        {
+            "name": "latexmk-lualatex",
+            "command": "latexmk",
+            "args": [
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "-pdf",
+                "-lualatex",
+                "-latexmkrc=${latex:defaultمتarmlatexmkrc}"
+            ]
+        },
+        {
+            "name": "latexmk-xelatex",
+            "command": "latexmk",
+            "args": [
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "-pdf",
+                "-xelatex",
+                "-latexmkrc=${latex:defaultمتarmlatexmkrc}"
+            ]
+        },
+        {
+            "name": "pdflatex",
+            "command": "pdflatex",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "lualatex",
+            "command": "lualatex",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "xelatex",
+            "command": "xelatex",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "bibtex",
+            "command": "bibtex",
+            "args": [
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "biber",
+            "command": "biber",
+            "args": [
+                "%DOC%"
+            ]
+        },
+        {
+            "name": "makeindex",
+            "command": "makeindex",
+            "args": [
+                "%DOC%"
+            ]
+        }
+    ],
+    "latex-workshop.latex.build.recipes": [
+        "latexmk (latexmkrc)",
+        "latexmk (LuaLaTeX)",
+        "latexmk (XeLaTeX)",
+        "pdflatex + View PDF",
+        "LuaLaTeX + View PDF",
+        "XeLaTeX + View PDF",
+        "BibTeX",
+        "Biber",
+        "Makeindex"
+    ]
+}
