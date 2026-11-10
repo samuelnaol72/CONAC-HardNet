@@ -1,0 +1,11 @@
+modifyLineBreaks:
+  textWrapOptions:
+    columns: 80
+    all: 1
+    huge: overflow
+    perCodeBlockBasis: 0
+    beforeFindingChildCodeBlocks: 0
+
+  removeParagraphLineBreaks:
+    all: 1
+    beforeTextWrap: 1

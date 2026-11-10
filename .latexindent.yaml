@@ -1,0 +1,36 @@
+
+defaultIndent: "  "
+
+modifyLineBreaks:
+  preserveBlankLines: 1
+
+  textWrapOptions:
+    columns: 80
+    huge: overflow
+    perCodeBlockBasis: 0
+    beforeFindingChildCodeBlocks: 0
+    all: 1
+
+    environments:
+      equation: 0
+      equation*: 0
+      align: 0
+      align*: 0
+      aligned: 0
+      gather: 0
+      gather*: 0
+      multline: 0
+      multline*: 0
+      cases: 0
+      matrix: 0
+      bmatrix: 0
+      pmatrix: 0
+      tikzpicture: 0
+
+  removeParagraphLineBreaks:
+    all: 1
+    environments:
+      equation: 0
+      align: 0
+      aligned: 0
+      tikzpicture: 0

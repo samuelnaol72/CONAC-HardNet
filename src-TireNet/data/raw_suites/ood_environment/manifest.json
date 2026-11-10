@@ -1,0 +1,44 @@
+{
+  "mode": "strict_factor_holdout",
+  "counts": {
+    "train": 4598,
+    "valid": 1150,
+    "test": 3832
+  },
+  "definition": {
+    "type": "strict_factor_holdout",
+    "training_region": "load and friction levels exclude both test factor sets",
+    "test_region": "held-out load levels AND held-out friction levels",
+    "test_load_levels_N": [
+      2500,
+      5500
+    ],
+    "test_friction_levels": [
+      0.35,
+      0.95
+    ],
+    "excluded_rows": 9580
+  },
+  "trainEnvironments": [
+    "env_0006",
+    "env_0007",
+    "env_0008",
+    "env_0011",
+    "env_0012",
+    "env_0013"
+  ],
+  "validationEnvironments": [
+    "env_0006",
+    "env_0007",
+    "env_0008",
+    "env_0011",
+    "env_0012",
+    "env_0013"
+  ],
+  "testEnvironments": [
+    "env_0000",
+    "env_0004",
+    "env_0015",
+    "env_0019"
+  ]
+}

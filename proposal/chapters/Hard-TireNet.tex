@@ -1,24 +1,33 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % CHAPTER: Hard-TireNet
+% Requires the thesis/proposal preamble and its existing macros.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \chapter{Hard-TireNet: Hard-Constrained Combined-Slip Tire-Force Surrogates}
 \label{Tire:chap:Hard-TireNet}
-This chapter develops a physical application of HardNet++ for combined-slip
-tire-force estimation in autonomous vehicles. The proposed framework,
-referred to as Hard-TireNet, learns the nonlinear longitudinal and lateral
-tire forces while strictly satisfying a prescribed load- and friction-dependent
-admissible set. In prior work, vanilla HardNet was applied
-after approximating the nonlinear friction ellipse with conservative affine constraints.
-In contrast, this work leverages the general formulation of HardNet++~\cite{Goertzen:2026aa}
-to directly enforce the nonlinear friction ellipse without polyhedral over-approximation.
-The force-envelope limits are assumed to be known a priori.
-The remainder of this chapter formulates the combined-slip estimation
-problem in Section~\ref{Tire:sec:problem:formulation}, defines the physical
-admissible set in Section~\ref{Tire:sec:physical:constraints}, introduces
-the Hard-TireNet architecture in Section~\ref{Tire:sec:architecture},
-describes training and online adaptation in Section~\ref{Tire:sec:training},
-and presents the validation protocol in Section~\ref{Tire:sec:validation}.
-The chapter is concluded in Section~\ref{Tire:sec:conclusion}.
+
+This chapter investigates the application of HardNet++ to combined-slip
+tire-force estimation for autonomous vehicles. The proposed framework, referred
+to as Hard-TireNet, learns the nonlinear relationship between tire operating
+conditions and the resulting longitudinal and lateral forces while seeking to
+satisfy a prescribed load- and friction-dependent admissible set to a specified
+numerical tolerance.
+
+In our previous work \cred{Needs citation}, vanilla HardNet was applied to
+affine inequalities representing a polygonal approximation of the combined-slip
+friction envelope. In contrast, this work investigates direct enforcement of a
+prescribed nonlinear friction ellipse using a differentiable constraint layer,
+building on the general formulation of HardNet++~\cite{Goertzen:2026aa}. The
+initial formulation assumes that the vertical tire load and road-friction
+coefficient are available and that the envelope shape is prescribed or
+calibrated separately from the force-prediction network.
+
+The remainder of this chapter formulates the tire-force estimation problem in
+Section~\ref{Tire:sec:problem:formulation}, defines the admissible set in
+Section~\ref{Tire:sec:physical:constraints}, introduces the proposed
+architecture in Section~\ref{Tire:sec:proposedmethod}, describes training and
+adaptation in Section~\ref{Tire:sec:training}, and specifies validation in
+Section~\ref{Tire:sec:validation}. Section~\ref{Tire:sec:conclusion} concludes
+the chapter.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PROBLEM FORMULATION
@@ -26,98 +35,112 @@ The chapter is concluded in Section~\ref{Tire:sec:conclusion}.
 \section{Problem Formulation}
 \label{Tire:sec:problem:formulation}
 
-Under combined longitudinal and lateral slip, the tire-force vector is
+Under steady-state combined longitudinal and lateral slip conditions, the
+tire-force vector $\mv{F}:=(F_x,F_y)^\top$, where $F_x$ and $F_y$ denote the
+longitudinal and lateral tire forces, respectively, depends nonlinearly on
+longitudinal slip ratio $\kappa$, slip angle $\alpha$, vertical load $F_z$,
+road-friction coefficient $\mu$, and tire-specific parameters. This
+relationship is written compactly as
 \begin{equation}
-  \label{Tire:eq:force:vector}
-  \mv{F}
-  :=
-  (
-    F_x,
-    F_y
-  )^\top
-  ,
+	\label{Tire:eq:force:map}
+	\mv{F}
+	=
+	\mv{f}_{\mathrm{tire}}
+	\left(
+	\mv{x};\mv{\eta}
+	\right)
+	,
 \end{equation}
-where $F_x$ and $F_y$ are the longitudinal and lateral tire forces,
-respectively.  Under steady-state conditions, the tire forces are nonlinearly
-dependent on the  longitudinal slip ratio $\kappa$, slip angle $\alpha$, 
-vertical load $F_z$, road-friction coefficient $\mu$, and tire-specific 
-parameters.  We write this relationship as
-\begin{equation}
-  \label{Tire:eq:force:map}
-  \mv{F}
-  =
-  \mv{f}_{\mathrm{tire}}
-  \left(
-    \mv{x}; \mv{\eta}
-  \right)
-  ,
-\end{equation}
-where $\mv{x}:=(\kappa,\alpha,F_z,\mu)^\top$ and $\mv{\eta}$ collects unknown or
-slowly varying tire and road parameters.
+where $\mv{x}:=(\kappa,\alpha,F_z,\mu)^\top$ describes the operating
+conditions and $\mv{\eta}$ collects unknown or slowly varying tire-model
+parameters.
 
-In autonomous vehicle control and state estimation, evaluating the exact
-tire-force map $\mv{f}_{\mathrm{tire}}$ in real time is challenging due to
-modeling complexity and environmental uncertainties. To address this, the
-objective of Hard-TireNet is to construct a neural surrogate
-$\widehat{\mv{F}} := (\widehat{F}_x,\widehat{F}_y)^\top$ that accurately
-approximates the nonlinear force map while guaranteeing that the estimated
-forces strictly obey the physical friction envelope. This surrogate problem
-is formulated as
-
+In model-based vehicle control and state estimation, tire forces are commonly
+represented by analytical or empirical models \cred{Needs citation}. Their
+accuracy and evaluation cost depend on model complexity, and changes in
+operating conditions can require parameter adaptation. The aim here is to learn
+a surrogate that approximates the nonlinear force mapping while directly
+incorporating the prescribed nonlinear force envelope into the network forward
+pass. Let $\mv{\theta}$ denote the trainable parameters and let
+$\widehat{\mv{F}}_{\mv{\theta}}(\mv{x})$ be the constrained force prediction.
+The ideal constrained learning problem is
 \begin{equation}
-  \label{Tire:eq:objective}
-  \widehat{\mv{F}}
-  \approx
-  \mv{F},
-  \qquad
-  \text{subject to}
-  \qquad
-  \widehat{\mv{F}}
-  \in
-  \mathcal{C}
-  \left(
-    \mv{x};\mv{\eta}
-  \right),
+	\label{Tire:eq:objective}
+	\begin{aligned}
+		\min_{\mv{\theta}}
+		\quad &
+		\mathbb{E}_{(\mv{x},\mv{F})\sim\mathcal{D}}
+		\left[
+			\left\|
+			\widehat{\mv{F}}_{\mv{\theta}}(\mv{x})
+			-
+			\mv{F}
+			\right\|_2^2
+			\right]
+		\\
+		\text{s.t.}
+		\quad &
+		\widehat{\mv{F}}_{\mv{\theta}}(\mv{x})
+		\in
+		\mathcal{C}
+		\left(
+		\mv{x};\mv{\phi}
+		\right)
+		,
+		\qquad
+		\forall\,\mv{x}\in\Omega_x
+		,
+	\end{aligned}
 \end{equation}
-where $\mathcal{C}(\mv{x};\mv{\eta}) \subset \R^2$ denotes the state-dependent physical
-admissible set governed by the combined-slip friction ellipse. Unlike standard
-unconstrained or soft-penalized neural networks that may predict unphysical
-forces under distribution shifts or sparse data, the condition in
-\eqref{Tire:eq:objective} is enforced as a hard constraint. The mathematical
-structure of $\mathcal{C}(\mv{x};\mv{\eta})$ is formally defined in Section~\ref{Tire:sec:physical:constraints}.
+where $\mathcal{D}$ is the training-data distribution,
+$\Omega_x\subset\R^4$ is the operating domain, and
+$\mathcal{C}(\mv{x};\mv{\phi})\subset\R^2$ is the prescribed
+admissible force set. The parameter vector $\mv{\phi}$ specifies the
+envelope and is distinct from the trainable network parameters
+$\mv{\theta}$ and the unknown tire parameters $\mv{\eta}$.
+The finite-iteration differentiable projection layer(DPL) introduced in
+Section~\ref{CONAC:sec:DNN:arch} approximates the feasibility requirement within an explicitly assessed numerical tolerance. The force constraint is detailed in Section~\ref{Tire:sec:physical:constraints} and its numerical enforcement is described in Section~\ref{Tire:sec:proposedmethod}.
 
 \subsection{Assumptions}
 \label{Tire:sec:assumptions}
-
-The initial study is based on the following assumptions.
+The initial study is conducted under the following assumptions.
 
 \begin{assum}
-  \label{Tire:assum:context}
-  The vertical load and road-friction coefficient are available to the
-  surrogate, either from measurement or from separate vehicle-state
-  observers.  They satisfy $F_z\in\R_{>0}$ and
-  $\mu\in[\mu_{\min},\mu_{\max}]$ on the operating region.
+	\label{Tire:assum:context}
+	The vertical tire load and road-friction coefficient are available
+	from measurement or separate estimators. On the operating domain,
+	$F_z\in[F_{z,\min},F_{z,\max}]$ and
+	$\mu\in[\mu_{\min},\mu_{\max}]$, where
+	$F_{z,\min}>0$ and $\mu_{\min}>0$.
 \end{assum}
 
 \begin{assum}
-  \label{Tire:assum:compact}
-  The combined-slip input belongs to a compact set
-  $\Omega_x\subset\R^4$, and the reference force map
-  $\mv{f}_{\mathrm{tire}}$ is continuous on $\Omega_x$.
+	\label{Tire:assum:compact}
+	The combined-slip input belongs to a compact set
+	$\Omega_x\subset\R^4$. For fixed $\mv{\eta}$, the reference
+	tire-force mapping $\mv{f}_{\mathrm{tire}}$ is continuous on
+	$\Omega_x$.
 \end{assum}
 
 \begin{assum}
-  \label{Tire:assum:envelope}
-  The combined-slip admissible set $\mathcal{C}(\mv{x};\mv{\eta})$ is nonempty on $\Omega_x$.
-  Specifically, the force-envelope boundary functions $F_{x,\lim}(\mv{x};\mv{\eta})$ and
-  $F_{y,\lim}(\mv{x};\mv{\eta})$ (known a priori)
-  are strictly positive and continuous on the operating domain.
+	\label{Tire:assum:envelope}
+	The envelope parameters $\mv{\phi}$ are prescribed or calibrated
+	independently of the force-prediction network. The force limits
+	$F_{x,\lim}(\mv{x};\mv{\phi})$ and $F_{y,\lim}(\mv{x};\mv{\phi})$
+	are known, strictly positive, and continuous on $\Omega_x$.
 \end{assum}
-Assumption~\ref{Tire:assum:envelope} ensures that the physical envelope has a
-well-defined interior with non-zero semi-axes. This is critical for HardNet++,
-as the differentiable projection layer can only project onto a feasible, non-empty
-constraint set; an inconsistent or degenerate constraint boundary cannot be repaired
-by the network.
+
+\begin{assum}
+	\label{Tire:assum:dpl:domain}
+	For each fixed operating condition, the unconstrained output and all
+	DPL iterates remain in a bounded convex force domain
+	$\Omega_F\subset\R^2$. The damping parameter is chosen to satisfy
+	the sufficient descent condition of HardNet++ on this domain.
+\end{assum}
+
+The positive force limits define a nonempty ellipse. The additional DPL-domain
+assumption is used to invoke local smoothness constants and is not implied by
+compactness of the input domain alone.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PHYSICAL CONSTRAINTS
@@ -125,263 +148,1110 @@ by the network.
 \section{Combined-Slip Physical Constraint}
 \label{Tire:sec:physical:constraints}
 
-The tire forces $\mv{F}=(F_x,F_y)^\top$ are constrained by the friction ellipse
+The admissible longitudinal and lateral forces are represented by a a friction
+ellipse,
 \begin{equation}
-  \label{Tire:eq:friction:ellipse}
-  \left(
-  \frac{F_x}{F_{x,\lim}(\mv{x};\mv{\eta})}
-  \right)
-  ^2
-  +
-  \left(
-  \frac{F_y}{F_{y,\lim}(\mv{x};\mv{\eta})}
-  \right)
-  ^2
-  \leq
-  1
-  ,
+	\label{Tire:eq:friction:ellipse}
+	\left(
+	\frac{
+			F_x
+		}{
+			F_{x,\lim}(\mv{x};\mv{\phi})
+		}
+	\right)^2
+	+
+	\left(
+	\frac{
+			F_y
+		}{
+			F_{y,\lim}(\mv{x};\mv{\phi})
+		}
+	\right)^2
+	\leq
+	1
+	,
 \end{equation}
-where $F_{x,\lim}(\mv{x};\mv{\eta})$ and $F_{y,\lim}(\mv{x};\mv{\eta})$ are the
-longitudinal and lateral force limits, respectively.  They depend on the
-vertical load, road friction, and tire-road parameters.  Define the scalar
-constraint function
+where $F_{x,\lim}$ and $F_{y,\lim}$ are the positive longitudinal
+and lateral force limits. For the initial study, these limits are
+parameterized as
 \begin{equation}
-  \label{Tire:eq:friction:ellipse:rewritten}
-  c
-  \left(
-    \mv{F};\mv{x},\mv{\eta}
-  \right)
-  :=
-  \left(
-  \frac{F_x}{F_{x,\lim}(\mv{x};\mv{\eta})}
-  \right)^2
-  +
-  \left(
-  \frac{F_y}{F_{y,\lim}(\mv{x};\mv{\eta})}
-  \right)^2 
-  -1
-  .
+	\label{Tire:eq:force:limits}
+	\begin{aligned}
+		F_{x,\lim}
+		\left(
+		\mv{x};\mv{\phi}
+		\right)
+		 & =
+		\mu F_z s_x(F_z;\mv{\phi})
+		,
+		\\
+		F_{y,\lim}
+		\left(
+		\mv{x};\mv{\phi}
+		\right)
+		 & =
+		\mu F_z s_y(F_z;\mv{\phi})
+		,
+	\end{aligned}
+\end{equation}
+where $\mv{\phi}$ denotes the prescribed or independently calibrated
+parameters defining the envelope. In particular, the functions
+$s_x(F_z;\mv{\phi})$ and $s_y(F_z;\mv{\phi})$ may account for
+load-dependent longitudinal and lateral force capacities. They are
+specified in the experimental setup.
+
+Define the scalar constraint function
+\begin{equation}
+	\label{Tire:eq:friction:ellipse:rewritten}
+	c
+	\left(
+	\mv{F};\mv{x},\mv{\phi}
+	\right)
+	:=
+	\left(
+	\frac{
+			F_x
+		}{
+			F_{x,\lim}(\mv{x};\mv{\phi})
+		}
+	\right)^2
+	+
+	\left(
+	\frac{
+			F_y
+		}{
+			F_{y,\lim}(\mv{x};\mv{\phi})
+		}
+	\right)^2
+	-
+	1
+	.
+\end{equation}
+The admissible force set in \eqref{Tire:eq:objective} is then
+\begin{equation}
+	\label{Tire:eq:general:set}
+	\mathcal{C}
+	\left(
+	\mv{x};\mv{\phi}
+	\right)
+	:=
+	\left\{
+	\mv{F}\in\R^2
+	\,\middle|\,
+	c
+	\left(
+	\mv{F};\mv{x},\mv{\phi}
+	\right)
+	\leq
+	0
+	\right\}
+	.
 \end{equation}
 
-The combined-slip force constraint set introduced in
-\eqref{Tire:eq:objective} is therefore represented as
+\subsection{Regularity of the Friction-Ellipse Constraint}
+\label{Tire:sec:regularity}
+
+The convergence analysis of HardNet++~\cite{Goertzen:2026aa} relies on three
+regularity conditions: Lipschitz continuity of the constraint function,
+smoothness of the constraint-violation energy, and the Polyak--Lojasiewicz (PL)
+inequality. These conditions serve distinct purposes. The Lipschitz continuity
+of the constraint provides a uniform bound on its Jacobian and the associated
+Gram matrix. The smoothness of the violation energy provides a quadratic upper
+bound through the descent lemma, which is used to establish a sufficient
+decrease under the damped DPL update. Finally, the PL condition relates the
+gradient magnitude to the remaining constraint-violation energy, allowing
+sufficient descent to be translated into geometric convergence toward the
+feasible set.
+
+In this subsection, these three conditions are verified for the prescribed
+nonlinear friction ellipse, without repeating the general convergence proof of
+HardNet++.Throughout the analysis, the operating condition $\mv{x}$ and the envelope parameters $\mv{\phi}$ are fixed. For brevity, the positive force
+limits are denoted by
 \begin{equation}
-  \label{Tire:eq:general:set}
-  \mathcal{C}
-  \left(
-    \mv{x};\mv{\eta}
-  \right)
-  :=
-  \left\{
-    \mv{F}\in\R^2
-    \mid
-    c
-    \left(
-      \mv{F};\mv{x},\mv{\eta}
-    \right)
-    \leq
-    0
-  \right\}
-  .
+	\begin{aligned}
+		a
+		 & :=
+		F_{x,\lim}
+		\left(
+		\mv{x};\mv{\phi}
+		\right)
+		>0
+		,
+		\\
+		b
+		 & :=
+		F_{y,\lim}
+		\left(
+		\mv{x};\mv{\phi}
+		\right)
+		>0
+		.
+	\end{aligned}
 \end{equation}
+
+The nonlinear friction-ellipse constraint is
+\begin{equation}
+	\label{Tire:eq:regularity:constraint}
+	c(\mv{F})
+	:=
+	\frac{F_x^2}{a^2}
+	+
+	\frac{F_y^2}{b^2}
+	-
+	1
+	\leq
+	0
+	.
+\end{equation}
+
+The corresponding admissible force set is
+\begin{equation}
+	\mathcal{C}
+	:=
+	\left\{
+	\mv{F}\in\R^2
+	\,\middle|\,
+	c(\mv{F})\leq0
+	\right\}
+	.
+\end{equation}
+
+Define the nonnegative constraint residual as
+\begin{equation}
+	r(\mv{F})
+	:=
+	\myReLU
+	\left(
+	c(\mv{F})
+	\right)
+	=
+	\max
+	\left\{
+	0,c(\mv{F})
+	\right\}
+	.
+\end{equation}
+
+The associated constraint-violation energy is
+\begin{equation}
+	\label{Tire:eq:violation:energy}
+	V_p(\mv{F})
+	:=
+	\frac{1}{2}
+	r(\mv{F})^2
+	.
+\end{equation}
+
+By construction, $V_p(\mv{F})\geq0$, and
+\begin{equation}
+	V_p(\mv{F})
+	=
+	0
+	\quad
+	\Longleftrightarrow
+	\quad
+	\mv{F}\in\mathcal{C}
+	.
+\end{equation}
+
+Since $\mv{F}=\mv{0}$ is feasible, the minimum violation energy is $V_p^*=0$.
+
+The constraint gradient and Hessian with respect to the force vector are
+\begin{equation}
+	\label{Tire:eq:constraint:derivatives}
+	\begin{aligned}
+		\nabla c(\mv{F})
+		 & =
+		\begin{bmatrix}
+			\dfrac{2F_x}{a^2}
+			\\
+			\dfrac{2F_y}{b^2}
+		\end{bmatrix}
+		,
+		\\
+		\nabla^2 c(\mv{F})
+		 & =
+		\begin{bmatrix}
+			\dfrac{2}{a^2} & 0
+			\\
+			0              & \dfrac{2}{b^2}
+		\end{bmatrix}
+		.
+	\end{aligned}
+\end{equation}
+
+For the following bounds, consider a closed ball
+\begin{equation}
+	\mathcal{B}_R
+	:=
+	\left\{
+	\mv{F}\in\R^2
+	\,\middle|\,
+	\|\mv{F}\|_2\leq R
+	\right\}
+	,
+\end{equation}
+where $R>0$ is selected such that the relevant
+DPL domain $\Omega_F$ is contained in
+$\mathcal{B}_R$.
+
+\paragraph{1) Lipschitz continuity of the constraint function.}
+
+The first requirement is that the constraint function $c(\mv{F})$ be
+$G$-Lipschitz continuous. Specifically, there must exist a constant $G>0$ such
+that
+\begin{equation}
+	\left|
+	c(\mv{F}_1)
+	-
+	c(\mv{F}_2)
+	\right|
+	\leq
+	G
+	\left\|
+	\mv{F}_1-\mv{F}_2
+	\right\|_2
+	,
+\end{equation}
+for all $\mv{F}_1,\mv{F}_2\in\mathcal{B}_R$.
+
+Let
+\begin{equation}
+	A
+	:=
+	\min\{a,b\}
+	>0
+	.
+\end{equation}
+
+Using the expression for the constraint gradient,
+\begin{equation}
+	\begin{aligned}
+		\|\nabla c(\mv{F})\|_2^2
+		 & =
+		\frac{4F_x^2}{a^4}
+		+
+		\frac{4F_y^2}{b^4}
+		\\
+		 & \leq
+		\frac{4}{A^4}
+		\left(
+		F_x^2+F_y^2
+		\right)
+		\\
+		 & =
+		\frac{4}{A^4}
+		\|\mv{F}\|_2^2
+		\\
+		 & \leq
+		\frac{4R^2}{A^4}
+		.
+	\end{aligned}
+\end{equation}
+
+Taking the square root yields
+\begin{equation}
+	\label{Tire:eq:constraint:lipschitz}
+	\boxed{
+		\|\nabla c(\mv{F})\|_2
+		\leq
+		\frac{2R}{A^2}
+		=:
+		G
+	}
+	.
+\end{equation}
+
+To establish Lipschitz continuity, consider any two force vectors
+$\mv{F}_1,\mv{F}_2$ in $\mathcal{B}_R$. Since the ball is convex, the line
+segment joining these points remains in the ball.
+
+By the fundamental theorem of calculus,
+\begin{equation}
+	\begin{aligned}
+		c(\mv{F}_2)-c(\mv{F}_1)
+		 & =
+		\int_0^1
+		\nabla c
+		\left(
+		\mv{F}_1
+		+
+		t(\mv{F}_2-\mv{F}_1)
+		\right)^\top
+		\\
+		 & \qquad\qquad
+		(\mv{F}_2-\mv{F}_1)
+		\,\mathrm{d}t
+		.
+	\end{aligned}
+\end{equation}
+
+Applying the Cauchy--Schwarz inequality,
+\begin{equation}
+	\begin{aligned}
+		 &
+		\left|
+		c(\mv{F}_2)-c(\mv{F}_1)
+		\right|
+		\\
+		 & \leq
+		\int_0^1
+		\left\|
+		\nabla c
+		\left(
+		\mv{F}_1
+		+
+		t(\mv{F}_2-\mv{F}_1)
+		\right)
+		\right\|_2
+		\\
+		 & \qquad\qquad
+		\left\|
+		\mv{F}_2-\mv{F}_1
+		\right\|_2
+		\,\mathrm{d}t
+		\\
+		 & \leq
+		G
+		\left\|
+		\mv{F}_2-\mv{F}_1
+		\right\|_2
+		.
+	\end{aligned}
+\end{equation}
+
+Thus, the friction-ellipse constraint is $G$-Lipschitz continuous on
+$\mathcal{B}_R$.
+
+Moreover, the constraint Jacobian is $J_c(\mv{F})=\nabla c(\mv{F})^\top$.
+Therefore,
+\begin{equation}
+	\begin{aligned}
+		\lambda_{\max}
+		\left(
+		J_cJ_c^\top
+		\right)
+		 & =
+		\|J_c\|_2^2
+		\\
+		 & =
+		\|\nabla c(\mv{F})\|_2^2
+		\\
+		 & \leq
+		G^2
+		.
+	\end{aligned}
+\end{equation}
+
+This upper bound controls the eigenvalues of the Gram matrix appearing in the
+damped DPL update. It is used in the HardNet++ convergence proof to establish a
+uniform lower bound on the per-iteration decrease of the violation energy.
+
+\paragraph{2) Smoothness of the constraint-violation energy.}
+
+The second requirement is that the constraint-violation energy $V_p(\mv{F})$ be
+$L$-smooth. Equivalently, its gradient must be $L$-Lipschitz continuous,
+meaning
+\begin{equation}
+	\left\|
+	\nabla V_p(\mv{F}_1)
+	-
+	\nabla V_p(\mv{F}_2)
+	\right\|_2
+	\leq
+	L
+	\left\|
+	\mv{F}_1-\mv{F}_2
+	\right\|_2
+	.
+\end{equation}
+
+To verify this property, the violation energy is first expressed in piecewise
+form:
+\begin{equation}
+	V_p(\mv{F})
+	=
+	\begin{cases}
+		0,
+		 & c(\mv{F})\leq0
+		,
+		\\[2pt]
+		\dfrac{1}{2}c(\mv{F})^2,
+		 & c(\mv{F})>0
+		.
+	\end{cases}
+\end{equation}
+
+Differentiating gives
+\begin{equation}
+	\nabla V_p(\mv{F})
+	=
+	\begin{cases}
+		\mv{0},
+		 & c(\mv{F})\leq0
+		,
+		\\[2pt]
+		c(\mv{F})\nabla c(\mv{F}),
+		 & c(\mv{F})>0
+		.
+	\end{cases}
+\end{equation}
+
+At the boundary $c(\mv{F})=0$, the gradient from the infeasible side approaches
+zero. Hence, the gradient is continuous across the constraint boundary, and
+$V_p$ is continuously differentiable.
+
+For an infeasible force vector, differentiating the gradient once more gives
+\begin{equation}
+	\begin{aligned}
+		\nabla^2 V_p(\mv{F})
+		 & =
+		\nabla
+		\left(
+		c(\mv{F})
+		\nabla c(\mv{F})
+		\right)
+		\\
+		 & =
+		\nabla c(\mv{F})
+		\nabla c(\mv{F})^\top
+		+
+		c(\mv{F})
+		\nabla^2 c(\mv{F})
+		.
+	\end{aligned}
+\end{equation}
+
+Using the triangle inequality and the submultiplicative property of the matrix
+norm,
+\begin{equation}
+	\begin{aligned}
+		\|\nabla^2 V_p(\mv{F})\|_2
+		 & \leq
+		\left\|
+		\nabla c(\mv{F})
+		\nabla c(\mv{F})^\top
+		\right\|_2
+		\\
+		 & \quad+
+		|c(\mv{F})|
+		\|\nabla^2 c(\mv{F})\|_2
+		\\
+		 & =
+		\|\nabla c(\mv{F})\|_2^2
+		\\
+		 & \quad+
+		|c(\mv{F})|
+		\|\nabla^2 c(\mv{F})\|_2
+		.
+	\end{aligned}
+\end{equation}
+
+The first term has already been bounded as
+\begin{equation}
+	\|\nabla c(\mv{F})\|_2^2
+	\leq
+	\frac{4R^2}{A^4}
+	.
+\end{equation}
+
+For the constraint Hessian,
+\begin{equation}
+	\begin{aligned}
+		\|\nabla^2 c(\mv{F})\|_2
+		 & =
+		\max
+		\left\{
+		\frac{2}{a^2},
+		\frac{2}{b^2}
+		\right\}
+		\\
+		 & =
+		\frac{2}{A^2}
+		.
+	\end{aligned}
+\end{equation}
+
+For any infeasible point in $\mathcal{B}_R$,
+\begin{equation}
+	\begin{aligned}
+		0<c(\mv{F})
+		 & =
+		\frac{F_x^2}{a^2}
+		+
+		\frac{F_y^2}{b^2}
+		-
+		1
+		\\
+		 & \leq
+		\frac{F_x^2+F_y^2}{A^2}
+		-
+		1
+		\\
+		 & \leq
+		\frac{R^2}{A^2}
+		-
+		1
+		.
+	\end{aligned}
+\end{equation}
+
+Consequently, whenever an infeasible point is present in the ball,
+\begin{equation}
+	|c(\mv{F})|
+	\leq
+	\max
+	\left\{
+	0,
+	\frac{R^2}{A^2}-1
+	\right\}
+	.
+\end{equation}
+
+Substituting these bounds gives
+\begin{equation}
+	\begin{aligned}
+		\|\nabla^2 V_p(\mv{F})\|_2
+		 & \leq
+		\frac{4R^2}{A^4}
+		\\
+		 & \quad+
+		\frac{2}{A^2}
+		\max
+		\left\{
+		0,
+		\frac{R^2}{A^2}-1
+		\right\}
+		.
+	\end{aligned}
+\end{equation}
+
+At strictly feasible points, the Hessian is zero. Although the Hessian need not
+exist on the constraint boundary, the gradient is continuous there, and the
+preceding bounds hold on each smooth portion of any line segment in the ball.
+Integrating the gradient variation along such segments yields a Lipschitz bound
+for the gradient on the entire ball.
+
+Therefore, a sufficient smoothness constant is
+\begin{equation}
+	\label{Tire:eq:energy:smoothness}
+	\boxed{
+		L
+		:=
+		\frac{4R^2}{A^4}
+		+
+		\frac{2}{A^2}
+		\max
+		\left\{
+		0,
+		\frac{R^2}{A^2}-1
+		\right\}
+	}
+	.
+\end{equation}
+
+Thus,
+\begin{equation}
+	\|\nabla V_p(\mv{F}_1)
+	-
+	\nabla V_p(\mv{F}_2)\|_2
+	\leq
+	L\|\mv{F}_1-\mv{F}_2\|_2
+	.
+\end{equation}
+
+By the descent lemma, for any $\mv{F}_k,\mv{F}_{k+1}\in\mathcal{B}_R$,
+\begin{equation}
+	\label{Tire:eq:ellipse:descent:lemma}
+	\begin{aligned}
+		V_p(\mv{F}_{k+1})
+		 & \leq
+		V_p(\mv{F}_k)
+		\\
+		 & \quad+
+		\nabla V_p(\mv{F}_k)^\top
+		\left(
+		\mv{F}_{k+1}-\mv{F}_k
+		\right)
+		\\
+		 & \quad+
+		\frac{L}{2}
+		\left\|
+		\mv{F}_{k+1}-\mv{F}_k
+		\right\|_2^2
+		.
+	\end{aligned}
+\end{equation}
+
+This quadratic upper bound is the starting point of the HardNet++
+sufficient-descent analysis. Together with the Gram-matrix eigenvalue bound
+established above, it allows the damped DPL correction to be shown to decrease
+the violation energy when the damping parameter is sufficiently large.
+
+\paragraph{3) Polyak--Lojasiewicz condition.}
+
+The third requirement is that the constraint-violation energy satisfies the PL
+inequality
+\begin{equation}
+	\label{Tire:eq:pl:general}
+	\frac{1}{2}
+	\|\nabla V_p(\mv{F})\|_2^2
+	\geq
+	\mu_{\mathrm{PL}}
+	\left(
+	V_p(\mv{F})-V_p^*
+	\right)
+	,
+\end{equation}
+for some $\mu_{\mathrm{PL}}>0$.
+
+Since $V_p^*=0$, this reduces to
+\begin{equation}
+	\|\nabla V_p(\mv{F})\|_2^2
+	\geq
+	2\mu_{\mathrm{PL}}V_p(\mv{F})
+	.
+\end{equation}
+
+The significance of this condition is that a nonzero violation energy cannot be
+associated with a zero energy gradient. Consequently, once sufficient descent
+has been established, the algorithm cannot stagnate at an infeasible stationary
+point. Furthermore, the PL inequality provides a quantitative lower bound that
+leads to geometric decay of the violation energy.
+
+To verify the condition, first consider an infeasible force vector satisfying
+$c(\mv{F})>0$. In this case,
+\begin{equation}
+	\begin{aligned}
+		r(\mv{F})
+		 & =
+		c(\mv{F})
+		,
+		\\
+		V_p(\mv{F})
+		 & =
+		\frac{1}{2}c(\mv{F})^2
+		,
+		\\
+		\nabla V_p(\mv{F})
+		 & =
+		c(\mv{F})\nabla c(\mv{F})
+		.
+	\end{aligned}
+\end{equation}
+
+Taking the squared norm,
+\begin{equation}
+	\begin{aligned}
+		\|\nabla V_p(\mv{F})\|_2^2
+		 & =
+		c(\mv{F})^2
+		\|\nabla c(\mv{F})\|_2^2
+		.
+	\end{aligned}
+\end{equation}
+
+Define
+\begin{equation}
+	B
+	:=
+	\max\{a,b\}
+	>0
+	.
+\end{equation}
+
+Since $a,b\leq B$, we have
+\begin{equation}
+	\begin{aligned}
+		\|\nabla c(\mv{F})\|_2^2
+		 & =
+		4
+		\left(
+		\frac{F_x^2}{a^4}
+		+
+		\frac{F_y^2}{b^4}
+		\right)
+		\\
+		 & =
+		4
+		\left(
+		\frac{1}{a^2}
+		\frac{F_x^2}{a^2}
+		+
+		\frac{1}{b^2}
+		\frac{F_y^2}{b^2}
+		\right)
+		\\
+		 & \geq
+		\frac{4}{B^2}
+		\left(
+		\frac{F_x^2}{a^2}
+		+
+		\frac{F_y^2}{b^2}
+		\right)
+		.
+	\end{aligned}
+\end{equation}
+
+For an infeasible force vector, the friction-ellipse constraint implies
+\begin{equation}
+	\frac{F_x^2}{a^2}
+	+
+	\frac{F_y^2}{b^2}
+	>
+	1
+	.
+\end{equation}
+
+Therefore,
+\begin{equation}
+	\label{Tire:eq:ellipse:gradient:bound}
+	\boxed{
+		\|\nabla c(\mv{F})\|_2^2
+		>
+		\frac{4}{B^2}
+	}
+	.
+\end{equation}
+
+Substituting this result into the expression for the energy gradient,
+\begin{equation}
+	\begin{aligned}
+		\|\nabla V_p(\mv{F})\|_2^2
+		 & =
+		c(\mv{F})^2
+		\|\nabla c(\mv{F})\|_2^2
+		\\
+		 & \geq
+		\frac{4}{B^2}
+		c(\mv{F})^2
+		\\
+		 & =
+		\frac{8}{B^2}
+		\left(
+		\frac{1}{2}c(\mv{F})^2
+		\right)
+		\\
+		 & =
+		\frac{8}{B^2}
+		V_p(\mv{F})
+		.
+	\end{aligned}
+\end{equation}
+
+Comparing with the PL inequality,
+\begin{equation}
+	\|\nabla V_p(\mv{F})\|_2^2
+	\geq
+	2\mu_{\mathrm{PL}}V_p(\mv{F})
+	,
+\end{equation}
+a valid PL constant is
+\begin{equation}
+	\label{Tire:eq:ellipse:pl}
+	\boxed{
+		\mu_{\mathrm{PL}}
+		:=
+		\frac{4}{B^2}
+		=
+		\frac{4}{
+			\max\{a,b\}^2
+		}
+	}
+	.
+\end{equation}
+
+For feasible force vectors, $c(\mv{F})\leq0$, both the violation energy and its
+gradient vanish. Thus, the PL inequality also holds throughout the feasible
+set.
+
+Consequently, the violation energy satisfies the PL condition for all force
+vectors.
+
+Furthermore, since the positive force limits are continuous on the compact
+operating domain $\Omega_x$, there exists a finite uniform upper bound
+\begin{equation}
+	B_{\max}
+	:=
+	\max_{\mv{x}\in\Omega_x}
+	\max
+	\left\{
+	F_{x,\lim}(\mv{x};\mv{\phi}),
+	F_{y,\lim}(\mv{x};\mv{\phi})
+	\right\}
+	.
+\end{equation}
+
+Therefore, a uniform PL constant across the considered operating conditions is
+\begin{equation}
+	\mu_{\mathrm{PL}}
+	:=
+	\frac{4}{B_{\max}^2}
+	>0
+	.
+\end{equation}
+
+\paragraph{Implications for convergence of the DPL.}
+
+The preceding analysis establishes that the friction-ellipse constraint is
+$G$-Lipschitz continuous, its constraint-violation energy is $L$-smooth, and
+the violation energy satisfies the PL inequality.
+
+In the HardNet++ convergence analysis, the first two conditions, together with
+sufficient damping, establish a sufficient-descent inequality of the form
+\begin{equation}
+	\label{Tire:eq:dpl:sufficient:descent}
+	V_p(\mv{F}_{k+1})
+	\leq
+	V_p(\mv{F}_k)
+	-
+	\gamma
+	\|\nabla V_p(\mv{F}_k)\|_2^2
+	,
+\end{equation}
+for some $\gamma>0$.
+
+Applying the PL inequality yields
+\begin{equation}
+	\begin{aligned}
+		V_p(\mv{F}_{k+1})
+		 & \leq
+		V_p(\mv{F}_k)
+		-
+		2\gamma\mu_{\mathrm{PL}}
+		V_p(\mv{F}_k)
+		\\
+		 & =
+		\left(
+		1-2\gamma\mu_{\mathrm{PL}}
+		\right)
+		V_p(\mv{F}_k)
+		.
+	\end{aligned}
+\end{equation}
+
+Under the corresponding convergence conditions, the contraction factor
+satisfies
+\begin{equation}
+	0
+	\leq
+	1-2\gamma\mu_{\mathrm{PL}}
+	<
+	1
+	.
+\end{equation}
+
+Consequently, the violation energy decreases geometrically as
+\begin{equation}
+	\label{Tire:eq:dpl:geometric:convergence}
+	V_p(\mv{F}_k)
+	\leq
+	\left(
+	1-2\gamma\mu_{\mathrm{PL}}
+	\right)^k
+	V_p(\mv{F}_0)
+	.
+\end{equation}
+
+For the scalar-damped HardNet++ update, the sufficient damping condition is
+\begin{equation}
+	\gamma_{\mathrm{dpl}}
+	>
+	\frac{L}{2}
+	.
+\end{equation}
+
+Therefore, provided that the DPL iterates remain in the domain on which the
+derived uniform bounds hold and the damping condition is satisfied, the
+established HardNet++ convergence result applies to the prescribed nonlinear
+friction ellipse.
+
+The result guarantees asymptotic convergence toward zero constraint violation.
+For a finite iteration count, the resulting force estimate may instead satisfy
+only a prescribed positive violation tolerance. The effects of the damping
+parameter, iteration count, and residual tolerance will be evaluated in
+Section~\ref{Tire:sec:validation}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PROPOSED METHOD
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Proposed Method}
-\label{Tire:sec:architecture}
-The proposed architecture is shown in Fig.~\ref{Tire:fig:architecture}.  It
-contains a force-prediction backbone and a
-HardNet++ differentiable projection layer.  The backbone produces an
-unconstrained candidate force, while the projection layer maps that candidate
-to the current combined-slip admissible set before it is used for training,
-  estimation, or control.  Throughout this section, $\mv{F}$ denotes the true
-force, $\widehat{\mv{F}}_u$ the raw backbone output, and
-$\widehat{\mv{F}}$ the constrained output.
+\label{Tire:sec:proposedmethod}
+
+The proposed architecture is illustrated in Fig.~\ref{Tire:fig:architecture}. A
+force-prediction backbone first generates a raw force estimate, and a
+differentiable enforcement layer subsequently maps it into the prescribed
+admissible set. In the following, $\mv{F}$ is the reference force,
+$\widehat{\mv{F}}_u$ is the raw output, and $\widehat{\mv{F}}$ is the final
+constrained output.
 
 \begin{figure}[t]
-  \centering
-  \resizebox{0.8\textwidth}{!}{%
-    \input{figs/Hard-TireNet/architecture.tikz}%
-  }
-  \caption{Hard-TireNet architecture.}
-  \label{Tire:fig:architecture}
+	\centering
+	\resizebox{0.8\textwidth}{!}{%
+		\input{figs/Hard-TireNet/architecture.tikz}%
+	}
+	\caption{Hard-TireNet architecture.}
+	\label{Tire:fig:architecture}
 \end{figure}
-
-
-
-
- 
 
 \subsection{Force-Prediction Backbone}
 \label{Tire:sec:backbone}
 
-Let $\mv{h}_{F}^{(0)}:=\mv{x}$ be the combined-slip input.  A fully connected
-force-prediction backbone with $L_F$ hidden layers is recursively defined by
+Let $\mv{h}_F^{(0)}:=\mv{x}$. The fully connected backbone with $L_F$ hidden
+layers is defined recursively as
 \begin{equation}
-  \label{Tire:eq:backbone:hidden}
-  \mv{h}_{F}^{(\ell)}
-  =
-  \act_{\ell}
-  \left(
-    \wV_{F,\ell}^{\top}\mv{h}_{F}^{(\ell-1)}
-  \right)
-  ,
-  \qquad \ell\in\{1,\ldots,L_F\}
-  .
+	\label{Tire:eq:backbone:hidden}
+	\mv{h}_F^{(\ell)}
+	=
+	\act_{\ell}
+	\left(
+	\wV_{F,\ell}^{\top}
+	\mv{h}_F^{(\ell-1)}
+	\right)
+	,
+	\qquad
+	\ell\in\{1,\ldots,L_F\}
+	.
 \end{equation}
-The raw force output is
+Its raw output is
 \begin{equation}
-  \label{Tire:eq:backbone:output}
-  \widehat{\mv{F}}_{u}
-  =
-  \wV_{F,L_F+1}^{\top}\mv{h}_{F}^{(L_F)}
-  .
+	\label{Tire:eq:backbone:output}
+	\widehat{\mv{F}}_u
+	=
+	\wV_{F,L_F+1}^{\top}
+	\mv{h}_F^{(L_F)}
+	.
 \end{equation}
-Bias terms are included by augmenting each activation with a constant node,
-as in the DNN definition in Chapter~\ref{CONAC:chap:hard:CONAC}.  The raw
-output is not treated as the final force estimate when the physical constraint
-is active.  The force-backbone weight vector is denoted by $\wth_F$.
+Biases are included by augmenting the activations with constant nodes,
+as in Chapter~\ref{CONAC:chap:hard:CONAC}. The collection of trainable
+backbone parameters is denoted by $\mv{\theta}$ (equivalently,
+$\wth_F$ in the parameter-update notation below).
 
-\subsection{HardNet++ Differentiable Constraint Layer}
+\subsection{Differentiable Constraint-Enforcement Layer}
 \label{Tire:sec:dpl}
 
-The envelope parameters $\mv{\eta}$ are known a priori, so the constraint
-function $c$ in \eqref{Tire:eq:friction:ellipse:rewritten} is used directly by
-the projection layer.  The HardNet++ output is therefore
+The constraint layer uses the available input $\mv{x}$ and the prescribed
+envelope parameters $\mv{\phi}$. Its output is written as
 \begin{equation}
-  \label{Tire:eq:hardnet:tire:output}
-  \widehat{\mv{F}}
-  =
-  \Pi_{\mathrm{HN++}}
-  \left(
-    \widehat{\mv{F}}_{u};\mv{x},\mv{\eta}
-  \right)
-  .
+	\label{Tire:eq:hardnet:tire:output}
+	\widehat{\mv{F}}
+	=
+	\Pi_{\mathrm{HN++}}
+	\left(
+	\widehat{\mv{F}}_u;\mv{x},\mv{\phi}
+	\right)
+	.
 \end{equation}
-The map $\Pi_{\mathrm{HN++}}$ is evaluated in the forward pass.  Therefore,
-the loss gradient is propagated through the constraint-enforcement
-operation, and the backbone is trained using the constrained output.  This
-is distinct from clipping a prediction after the network has been trained.
+The DPL follows the damped local-linearization rule of
+HardNet++~\cite{Goertzen:2026aa}. Its corrections are included in
+the forward pass, allowing differentiation through the unrolled
+iterations wherever the operations are differentiable.
 
-Let $\mv{y}^{(0)}:=\widehat{\mv{F}}_{u}$ and define the nonnegative violation
-residual at iteration $k$ by
+Let $\mv{y}^{(0)}:=\widehat{\mv{F}}_u$. At iteration $k$, define the
+nonnegative constraint residual by
 \begin{equation}
-  \label{Tire:eq:dpl:residual}
-  r^{(k)}
-  :=
-  \myReLU
-  \left(
-    c
-    \left(
-      \mv{y}^{(k)};\mv{x},\mv{\eta}
-    \right)
-  \right)
-  .
+	\label{Tire:eq:dpl:residual}
+	r^{(k)}
+	:=
+	\myReLU
+	\left(
+	c
+	\left(
+		\mv{y}^{(k)};\mv{x},\mv{\phi}
+		\right)
+	\right)
+	.
 \end{equation}
-The constraint Jacobian is
+The Jacobian with respect to the force output is
 \begin{equation}
-  \label{Tire:eq:dpl:jacobian}
-  \mm{J}^{(k)}
-  :=
-  \left.
-  \ppfrac{
-    c
-    \left(
-      \mv{y};\mv{x},\mv{\eta}
-    \right)
-  }{\mv{y}}
-  \right|_{\mv{y}=\mv{y}^{(k)}}
-  .
+	\label{Tire:eq:dpl:jacobian}
+	\mm{J}^{(k)}
+	:=
+	\left.
+	\ppfrac{
+		c\left(\mv{y};\mv{x},\mv{\phi}\right)
+	}{\mv{y}}
+	\right|_{\mv{y}=\mv{y}^{(k)}}
+	.
 \end{equation}
-Using a scalar damping parameter $\gamma_{\mathrm{dpl}}>0$, the differentiable
+With damping parameter $\gamma_{\mathrm{dpl}}>0$, the numerical
 correction is
 \begin{equation}
-  \label{Tire:eq:dpl:update}
-  \mv{y}^{(k+1)}
-  =
-  \mv{y}^{(k)}
-  -
-  {\mm{J}^{(k)}}^{\top}
-  \left(
-    \mm{J}^{(k)}{\mm{J}^{(k)}}^{\top}
-    +\gamma_{\mathrm{dpl}}
-  \right)^{-1}
-  r^{(k)}
-  .
+	\label{Tire:eq:dpl:update}
+	\mv{y}^{(k+1)}
+	=
+	\mv{y}^{(k)}
+	-
+	{\mm{J}^{(k)}}^{\top}
+	\left(
+	\mm{J}^{(k)}{\mm{J}^{(k)}}^{\top}
+	+
+	\gamma_{\mathrm{dpl}}
+	\right)^{-1}
+	r^{(k)}
+	.
 \end{equation}
-The iteration stops when $r^{(k)}\leq\varepsilon_{\mathrm{tol}}$ or when the
-maximum number of iterations $K$ is reached.  If $k_*$ is the stopping index,
-the final output is $\Pi_{\mathrm{HN++}}:=\mv{y}^{(k_*)}$.  The damping term
-improves numerical conditioning when the constraint Jacobian is poorly
-conditioned, which is particularly relevant near low-load or low-friction
-operating points.
+The DPL terminates when $r^{(k)}\leq\varepsilon_{\mathrm{tol}}$
+or when the maximum number of iterations $K$ is reached. Early
+termination at the prescribed residual tolerance certifies only
+approximate feasibility. Reaching the iteration limit without meeting
+the tolerance does not certify even that degree of feasibility.
+The constraint residual of the last iterate is therefore evaluated
+explicitly, as described in Section~\ref{Tire:sec:validation}.
 
 \begin{algorithm}[!t]
-  \caption{HardNet++ combined-slip enforcement layer}
-  \label{Tire:alg:dpl}
-  \begin{algorithmic}[1]
-    \STATE \textbf{Input:}
-    Raw force $\widehat{\mv{F}}_u$, physical input $\mv{x}$,
-    envelope parameters $\mv{\eta}$, damping parameter
-    $\gamma_{\mathrm{dpl}}$, iteration limit $K$, and tolerance
-    $\varepsilon_{\mathrm{tol}}$
-
-    \STATE Initialize $\mv{y}^{(0)}\leftarrow\widehat{\mv{F}}_{u}$
-
-    \FOR{$k=0$ to $K-1$}
-      \STATE Evaluate
-      $r^{(k)}\leftarrow
-      \myReLU\left(
-        c
-        \left(
-          \mv{y}^{(k)};\mv{x},\mv{\eta}
-        \right)
-      \right)$
-      \IF{$|r^{(k)}|\leq\varepsilon_{\mathrm{tol}}$}
-        \STATE \textbf{break}
-      \ENDIF
-      \STATE Evaluate the Jacobian $\mm{J}^{(k)}$
-      \STATE Compute
-      $\Delta\mv{y}^{(k)}\leftarrow
-      -{\mm{J}^{(k)}}^{\top}
-      (\mm{J}^{(k)}{\mm{J}^{(k)}}^{\top}+\gamma_{\mathrm{dpl}})^{-1}
-      r^{(k)}$
-      \STATE Update $\mv{y}^{(k+1)}\leftarrow
-      \mv{y}^{(k)}+\Delta\mv{y}^{(k)}$
-    \ENDFOR
-
-    \STATE \textbf{Output:}
-    $\widehat{\mv{F}}\leftarrow\mv{y}^{(k_*)}$
-  \end{algorithmic}
+	\caption{HardNet++ nonlinear combined-slip constraint enforcement}
+	\label{Tire:alg:dpl}
+	\begin{algorithmic}[1]
+		\STATE \textbf{Input:} Raw force $\widehat{\mv{F}}_u$,
+		input $\mv{x}$, envelope parameters $\mv{\phi}$,
+		damping $\gamma_{\mathrm{dpl}}$, maximum iterations $K$,
+		tolerance $\varepsilon_{\mathrm{tol}}$
+		\STATE Initialize $\mv{y}^{(0)}\leftarrow\widehat{\mv{F}}_u$
+		\FOR{$k=0$ to $K-1$}
+		\STATE $r^{(k)}\leftarrow\myReLU\left(c(\mv{y}^{(k)};\mv{x},\mv{\phi})\right)$
+		\IF{$r^{(k)}\leq\varepsilon_{\mathrm{tol}}$}
+		\STATE \textbf{break}
+		\ENDIF
+		\STATE Evaluate $\mm{J}^{(k)}$ from \eqref{Tire:eq:dpl:jacobian}
+		\STATE $\mv{y}^{(k+1)}\leftarrow\mv{y}^{(k)}
+			-{\mm{J}^{(k)}}^\top
+			(\mm{J}^{(k)}{\mm{J}^{(k)}}^\top+\gamma_{\mathrm{dpl}})^{-1}r^{(k)}$
+		\ENDFOR
+		\STATE Let $\mv{y}^{(k_*)}$ be the final iterate
+		\STATE \textbf{Output:}
+		$\widehat{\mv{F}}\leftarrow\mv{y}^{(k_*)}$
+	\end{algorithmic}
 \end{algorithm}
 
-For the combined-slip ellipse, the constraint Jacobian is
+For the prescribed ellipse, the constraint Jacobian is
 \begin{equation}
-  \label{Tire:eq:ellipse:jacobian}
-  \ppfrac{c}{\mv{F}}
-  =
-  \begin{bmatrix}
-    \dfrac{2F_x}{F_{x,\lim}(\mv{x};\mv{\eta})^2} &
-    \dfrac{2F_y}{F_{y,\lim}(\mv{x};\mv{\eta})^2}
-  \end{bmatrix}
-  .
+	\label{Tire:eq:ellipse:jacobian}
+	\ppfrac{c}{\mv{F}}
+	=
+	\begin{bmatrix}
+		\dfrac{2F_x}{F_{x,\lim}(\mv{x};\mv{\phi})^2}
+		 &
+		\dfrac{2F_y}{F_{y,\lim}(\mv{x};\mv{\phi})^2}
+	\end{bmatrix}
+	.
 \end{equation}
-When the DPL converges to a point for which the residual is below the
-tolerance, the output satisfies the constraint up to that
-tolerance:
+When the iteration terminates by the residual criterion, its output
+satisfies
 \begin{equation}
-  \label{Tire:eq:feasibility:tolerance}
-  c
-  \left(
-      \widehat{\mv{F}};\mv{x},\mv{\eta}
-  \right)
-  \leq
-  \varepsilon_{\mathrm{tol}}
-  .
+	\label{Tire:eq:feasibility:tolerance}
+	c
+	\left(
+	\widehat{\mv{F}};\mv{x},\mv{\phi}
+	\right)
+	\leq
+	\varepsilon_{\mathrm{tol}}
+	.
 \end{equation}
-This residual is a numerical enforcement error caused by a finite
-iteration tolerance, since the envelope is known exactly.
+For a fixed iteration budget, this inequality must be checked rather
+than presumed. Unlike the previous affine HardNet construction, the
+iterative nonlinear correction does not provide exact membership in
+the original ellipse after an arbitrary finite number of iterations.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TRAINING AND ADAPTATION
@@ -392,85 +1262,80 @@ iteration tolerance, since the envelope is known exactly.
 \subsection{Training Objective}
 \label{Tire:sec:training:objective}
 
-Let a minibatch contain $B$ samples
-$\{(\mv{x}_j,\mv{F}_j)\}_{j=1}^{B}$.  The constrained prediction for sample
-$j$ is denoted by $\widehat{\mv{F}}_j$ and is obtained from
-\eqref{Tire:eq:hardnet:tire:output}.  The force-fitting loss is
+For a minibatch $\{(\mv{x}_j,\mv{F}_j)\}_{j=1}^{B}$, let $\widehat{\mv{F}}_j$
+denote the final constrained prediction. The force-fitting loss is
 \begin{equation}
-  \label{Tire:eq:fit:loss}
-  \mathcal{L}_{\mathrm{fit}}
-  :=
-  \frac{1}{B}
-  \sum_{j=1}^{B}
-  \norm{
-    \widehat{\mv{F}}_j-\mv{F}_j
-  }^2
-  .
+	\label{Tire:eq:fit:loss}
+	\mathcal{L}_{\mathrm{fit}}
+	:=
+	\frac{1}{B}
+	\sum_{j=1}^{B}
+	\norm{
+		\widehat{\mv{F}}_j
+		-
+		\mv{F}_j
+	}^2
+	.
 \end{equation}
-The constraint residual can be included as a diagnostic or as a numerical
-regularizer:
+The constraint residual is monitored using
 \begin{equation}
-  \label{Tire:eq:constraint:loss}
-  \mathcal{L}_{\mathrm{con}}
-  :=
-  \frac{1}{B}
-  \sum_{j=1}^{B}
-  \left[
-    \myReLU
-    \left(
-      c
-      \left(
-         \widehat{\mv{F}}_j;\mv{x}_j,\mv{\eta}
-      \right)
-    \right)
-  \right]^2
-  .
+	\label{Tire:eq:constraint:loss}
+	\mathcal{L}_{\mathrm{con}}
+	:=
+	\frac{1}{B}
+	\sum_{j=1}^{B}
+	\left[
+		\myReLU
+		\left(
+		c
+		\left(
+		\widehat{\mv{F}}_j;\mv{x}_j,\mv{\phi}
+		\right)
+		\right)
+		\right]^2
+	.
 \end{equation}
-The model is trained with
+A general training loss, allowing optional numerical regularization, is
 \begin{equation}
-  \label{Tire:eq:total:loss}
-  \mathcal{L}_{\mathrm{HN++}}
-  =
-  \mathcal{L}_{\mathrm{fit}}
-  +
-  \lambda_{\mathrm{con}}\mathcal{L}_{\mathrm{con}}
-  +
-  \lambda_{\mathrm{reg}}\mathcal{L}_{\mathrm{reg}}
-  .
+	\label{Tire:eq:total:loss}
+	\mathcal{L}_{\mathrm{HN++}}
+	=
+	\mathcal{L}_{\mathrm{fit}}
+	+
+	\lambda_{\mathrm{con}}\mathcal{L}_{\mathrm{con}}
+	+
+	\lambda_{\mathrm{reg}}\mathcal{L}_{\mathrm{reg}}
+	.
 \end{equation}
 Here, $\lambda_{\mathrm{con}},\lambda_{\mathrm{reg}}\geq0$ are
-loss weights and $\mathcal{L}_{\mathrm{reg}}$ regularizes the network
-parameters.  Because the forward output is already constrained,
-$\mathcal{L}_{\mathrm{con}}$ is not the mechanism responsible for feasibility;
-it is only a diagnostic or numerical regularizer.
+weights and $\mathcal{L}_{\mathrm{reg}}$ regularizes the backbone.
+The constraint penalty is optional and cannot replace the DPL.
+In particular, any residual exceeding the chosen tolerance is reported
+as a numerical constraint violation rather than regarded as feasible.
 
 \subsection{Online Parameter Adaptation}
 \label{Tire:sec:online:adaptation}
 
-For changing road and tire conditions, the weights can be adapted online.
-Using the current minibatch loss, a projected gradient update is
+To accommodate changing operating conditions, the backbone weights may be
+updated online. With current data, a projected gradient step is
 \begin{equation}
-  \label{Tire:eq:adaptation}
-  \wth_F^{+}
-  =
-  \myproj_{\Theta_F}
-  \left(
-    \wth_F
-    -\alpha_F
-    \pptfrac{\mathcal{L}_{\mathrm{HN++}}}{\wth_F}
-  \right)
-  .
+	\label{Tire:eq:adaptation}
+	\wth_F^{+}
+	=
+	\myproj_{\Theta_F}
+	\left(
+	\wth_F
+	-
+	\alpha_F
+	\pptfrac{\mathcal{L}_{\mathrm{HN++}}}{\wth_F}
+	\right)
+	.
 \end{equation}
-Here, $\alpha_F\in\R_{>0}$ is a step size and the compact
-set $\Theta_F$ bounds the parameters.  The
-parameter projection prevents unbounded adaptation, while the HardNet++ layer
-independently enforces the force constraint.
-
-The online update is intentionally separated from output enforcement.  Even
-if the weights are temporarily inaccurate, each forward pass
-still evaluates the constraint layer with the known envelope.  Thus,
-adaptation changes the backbone but does
-not replace the hard projection step.
+Here, $\alpha_F>0$ is the adaptation step size and $\Theta_F$ is a
+compact parameter set. Parameter projection limits network-weight
+updates, whereas the output constraint is enforced independently
+using the available envelope. Thus, inaccurate or changing backbone
+weights do not change the prescribed force set.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % VALIDATION
@@ -478,112 +1343,113 @@ not replace the hard projection step.
 \section{Validation Protocol}
 \label{Tire:sec:validation}
 
-The validation study will focus exclusively on the combined-slip force map in
-\eqref{Tire:eq:force:map}.  Simulation-generated tire-force data will be used
-first so that the force labels and operating conditions are available.  The
-benchmark will include multiple vertical-load and friction levels together
-with combined variations of $\kappa$ and $\alpha$.  A subsequent study can
-replace or augment the simulation data with measured tire data.
+The evaluation will focus on the combined-slip mapping in
+\eqref{Tire:eq:force:map}. Simulation-generated force data will initially
+provide reference force labels for combinations of slip, vertical load, and
+friction. Subsequent experiments may use measured tire data.
 
 \subsection{Compared Models}
 \label{Tire:sec:compared:models}
 
-The following models will use the same backbone size, normalization,
-train-validation split, optimizer, and stopping criterion:
-
+The following models will be compared using matched backbone sizes, data
+partitions, optimizers, and stopping criteria:
 \begin{enumerate}
-  \item An unconstrained MLP that uses $\widehat{\mv{F}}_u$ directly as the
-  predicted force.
-  \item A soft-constrained MLP that uses the raw output and adds a finite
-  physical penalty to the fitting loss.
-  \item Hard-TireNet with the nonlinear differentiable enforcement layer in
-  Algorithm~\ref{Tire:alg:dpl}.
+	\item An unconstrained MLP that directly returns the raw force output.
+	\item A soft-constrained MLP trained with a finite constraint penalty.
+	\item The previous affine HardNet surrogate with a polygonal approximation of the
+	      friction ellipse.
+	\item Hard-TireNet with the nonlinear HardNet++ enforcement method in
+	      Algorithm~\ref{Tire:alg:dpl}.
+	\item An ellipse-specific differentiable radial enforcement baseline, which is
+	      feasible by construction and provides a reference for computational cost.
 \end{enumerate}
-
-This comparison separates the inductive bias of a physical force envelope
-from the difference between soft and hard enforcement.
+The comparison distinguishes the effect of removing polygonal
+approximation from the effect of using an iterative rather than an
+analytic enforcement operator.
 
 \subsection{Operating Conditions}
 \label{Tire:sec:operating:conditions}
 
-The experiments will evaluate the following conditions:
-
+The evaluation will consider:
 \begin{enumerate}
-  \item \textbf{IID:} random train-validation-test partitions over the
-  available operating region.
-  \item \textbf{Sparse:} a reduced training set with the validation and test
-  sets unchanged.
-  \item \textbf{Slip-OOD:} training and testing ranges are separated in
-  $\kappa$ and/or $\alpha$.
-  \item \textbf{Environment-OOD:} complete load-friction conditions are held
-  out from training.
-  \item \textbf{Sparse+OOD:} sparse training is combined with slip and
-  environment shifts.
+	\item \textbf{IID:} Random train-validation-test partitions within
+	      the available operating region.
+	\item \textbf{Sparse:} Reduced training data with unchanged validation
+	      and test sets.
+	\item \textbf{Slip-OOD:} Training and test ranges separated in
+	      $\kappa$ and/or $\alpha$.
+	\item \textbf{Environment-OOD:} Held-out combinations of $F_z$ and $\mu$.
+	\item \textbf{Sparse+OOD:} Sparse training combined with slip
+	      or environment shifts.
 \end{enumerate}
-
-All normalization statistics and envelope-calibration parameters will be
-computed using the training partition only.  This avoids transferring
-information from the test distribution into the physical constraint model.
+Input normalization and any data-driven calibration of $\mv{\phi}$
+will use training data only. If $\mv{\phi}$ is prescribed independently
+of the dataset, its specification will be reported explicitly.
 
 \subsection{Evaluation Metrics}
 \label{Tire:sec:metrics}
 
-Prediction accuracy will be quantified using component-wise root
-mean-square error:
+Prediction accuracy will be measured by the component-wise RMSE,
 \begin{equation}
-  \label{Tire:eq:rmse}
-  \mathrm{RMSE}_{i}
-  :=
-  \sqrt{
-    \frac{1}{N_{\mathrm{test}}}
-    \sum_{j=1}^{N_{\mathrm{test}}}
-    \left(
-      \widehat{F}_{i,j}-F_{i,j}
-    \right)^2
-  }
-  ,
-  \qquad
-  i\in\{x,y\}
-  .
+	\label{Tire:eq:rmse}
+	\mathrm{RMSE}_i
+	:=
+	\sqrt{
+	\frac{1}{N_{\mathrm{test}}}
+	\sum_{j=1}^{N_{\mathrm{test}}}
+	\left(
+	\widehat{F}_{i,j}
+	-
+	F_{i,j}
+	\right)^2
+	}
+	,
+	\qquad
+	i\in\{x,y\}
+	.
 \end{equation}
-The element-wise force error is also reported as
+The element-wise RMSE is
 \begin{equation}
-  \label{Tire:eq:rmse:element}
-  \mathrm{RMSE}_{\mathrm{elem}}
-  :=
-  \sqrt{
-    \frac{1}{2N_{\mathrm{test}}}
-    \sum_{j=1}^{N_{\mathrm{test}}}
-    \norm{
-      \widehat{\mv{F}}_j-\mv{F}_j
-    }^2
-  }
-  .
+	\label{Tire:eq:rmse:element}
+	\mathrm{RMSE}_{\mathrm{elem}}
+	:=
+	\sqrt{
+	\frac{1}{2N_{\mathrm{test}}}
+	\sum_{j=1}^{N_{\mathrm{test}}}
+	\norm{
+		\widehat{\mv{F}}_j
+		-
+		\mv{F}_j
+	}^2
+	}
+	.
 \end{equation}
-Physical consistency will be quantified by the constraint-violation rate,
-computed using the same envelope used during inference:
+The numerical constraint-violation rate is
 \begin{equation}
-  \label{Tire:eq:violation:rate}
-  r_{\mathrm{viol}}
-  :=
-  \frac{100}{N_{\mathrm{test}}}
-  \sum_{j=1}^{N_{\mathrm{test}}}
-  \mathbb{I}
-  \left[
-    c
-    \left(
-      \widehat{\mv{F}}_j;\mv{x}_j,\mv{\eta}_j
-    \right)
-    >
-    \varepsilon_{\mathrm{tol}}
-  \right]
-  .
+	\label{Tire:eq:violation:rate}
+	r_{\mathrm{viol}}
+	:=
+	\frac{100}{N_{\mathrm{test}}}
+	\sum_{j=1}^{N_{\mathrm{test}}}
+	\mathbb{I}
+	\left[
+		c
+		\left(
+		\widehat{\mv{F}}_j;\mv{x}_j,\mv{\phi}
+		\right)
+		>
+		\varepsilon_{\mathrm{tol}}
+		\right]
+	.
 \end{equation}
-The enforcement residual, the number of DPL iterations, and the inference
-time will also be recorded.  The central feasibility target is
-$r_{\mathrm{viol}}=0$ with respect to the known envelope, while
-accuracy and computational cost determine whether the constrained surrogate
-is suitable for real-time vehicle estimation or model predictive control.
+The residual $r(\widehat{\mv{F}})$, violation-energy value
+$V_p(\widehat{\mv{F}})$, iteration count, and inference time will
+also be recorded for different $K$ and $\gamma_{\mathrm{dpl}}$.
+Violations of the exact ellipse ($c>0$) and exceedances of the numerical
+tolerance ($c>\varepsilon_{\mathrm{tol}}$) will be distinguished.
+The initial candidate-force magnitude will be recorded to characterize
+the domain explored by the DPL. The prescribed ellipse is a modeling
+assumption, not a guarantee that all physical tire behavior is captured.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % CONCLUSION
@@ -591,23 +1457,17 @@ is suitable for real-time vehicle estimation or model predictive control.
 \section{Conclusion}
 \label{Tire:sec:conclusion}
 
-This chapter proposed Hard-TireNet, a hard-constrained neural surrogate
-for combined longitudinal and lateral tire-force estimation.  The method
-uses a neural backbone to approximate the tire-force map and a
-HardNet++ differentiable projection layer to enforce the known
-nonlinear friction-ellipse constraint.
+This chapter proposes Hard-TireNet as a constrained neural surrogate for
+combined longitudinal and lateral tire-force estimation. A neural backbone
+approximates the tire-force map, while the HardNet++ iterative enforcement
+stage reduces violations of a prescribed nonlinear friction ellipse to a
+selected numerical tolerance under the stated convergence conditions.
 
-The proposed formulation provides a direct bridge between the physical
-tire-force problem and the general hard-constraint framework developed in
-this proposal.  Its main hypothesis is that hard enforcement will be most
-useful under sparse data and distribution shift, where an unconstrained
-network can extrapolate to force combinations that are inconsistent with the
-available friction.  The planned experiments will test this hypothesis
-through prediction accuracy, violation rate, numerical residual, and
-real-time computational cost.
-
-The initial version assumes that $F_z$ and $\mu$ are available and that a
-conservative envelope can be calibrated.  Future work will address
-uncertainty in these quantities, online identification of the admissible set,
-measured tire data, and integration of the constrained surrogate into a
-vehicle-level observer or predictive controller.
+The central hypothesis is that envelope enforcement is particularly helpful
+under sparse training data and distribution shift, when an unconstrained
+network may extrapolate beyond the specified force capacity. The planned
+validation will examine force-prediction accuracy, ellipse-constraint
+violations, DPL convergence behavior, and computational cost. The initial study
+assumes available $F_z$ and $\mu$ and fixed or separately calibrated envelope
+parameters. Future work will study uncertain envelope information, measured
+tire data, and integration with vehicle-level estimation and control.

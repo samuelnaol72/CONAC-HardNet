@@ -1,0 +1,108 @@
+{
+  "preprocessor": "prepareCombinedSlip.m",
+  "source_dataset_file": "/home/naol/Desktop/Lab-Documents/ResearchRelated/CONAC-HardNet/src-TireNet/data/tire_rig_dataset.csv",
+  "suite": "ood_environment",
+  "total_source_samples": 9580,
+  "split": {
+    "mode": "strict_factor_holdout",
+    "counts": {
+      "train": 4598,
+      "valid": 1150,
+      "test": 3832
+    },
+    "definition": {
+      "type": "strict_factor_holdout",
+      "training_region": "load and friction levels exclude both test factor sets",
+      "test_region": "held-out load levels AND held-out friction levels",
+      "test_load_levels_N": [
+        2500,
+        5500
+      ],
+      "test_friction_levels": [
+        0.35,
+        0.95
+      ],
+      "excluded_rows": 9580
+    },
+    "trainEnvironments": [
+      "env_0006",
+      "env_0007",
+      "env_0008",
+      "env_0011",
+      "env_0012",
+      "env_0013"
+    ],
+    "validationEnvironments": [
+      "env_0006",
+      "env_0007",
+      "env_0008",
+      "env_0011",
+      "env_0012",
+      "env_0013"
+    ],
+    "testEnvironments": [
+      "env_0000",
+      "env_0004",
+      "env_0015",
+      "env_0019"
+    ]
+  },
+  "feature_names": [
+    "slip_ratio",
+    "slip_angle",
+    "normal_load",
+    "friction_coefficient"
+  ],
+  "target_names": [
+    "longitudinal_force",
+    "lateral_force"
+  ],
+  "context_names": [
+    "normal_load",
+    "friction_coefficient"
+  ],
+  "normalization_stats": {
+    "features": {
+      "slip_ratio": {
+        "mean": 0.0012482263728148227,
+        "std": 0.10878336149858502
+      },
+      "slip_angle": {
+        "mean": -0.00022915713117011103,
+        "std": 0.078502094635597472
+      },
+      "normal_load": {
+        "mean": 4001.7398869073509,
+        "std": 500.05135279137528
+      },
+      "friction_coefficient": {
+        "mean": 0.65029360591560825,
+        "std": 0.12252075035861862
+      }
+    },
+    "target": {
+      "longitudinal_force": {
+        "mean": 33.10870638509865,
+        "std": 2427.0747444129411
+      },
+      "lateral_force": {
+        "mean": 26.915183196494745,
+        "std": 1961.5031321808531
+      }
+    }
+  },
+  "hardnet_constraint": {
+    "type": "load_dependent_affine_ellipse_polygon",
+    "pn_N": 3580.65,
+    "gamma": 1.012,
+    "polygon_sides": 32,
+    "halfspace_rhs": 1,
+    "scale_x": "1.461 - 0.0495 * (Fz / pn_N)",
+    "scale_y": "1.3601625 - 0.1090375 * (Fz / pn_N)",
+    "Fx_limit": "gamma * scale_x(Fz) * mu * Fz",
+    "Fy_limit": "gamma * scale_y(Fz) * mu * Fz",
+    "constraint": "(Fx/Fx_limit)^2 + (Fy/Fy_limit)^2 <= 1",
+    "calibration": "fixed model-level constants; no dataset fit"
+  },
+  "raw_label_policy": "Raw force labels are preserved."
+}
